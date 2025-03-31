@@ -1,0 +1,10 @@
+[package]
+edition = "2021"
+name = "pictorus-nalgebra-interop"
+publish = false
+
+[dependencies]
+nalgebra = { version = "0.32.3", default-features = false }
+
+[dependencies.corelib-traits]
+path = "../corelib-traits"

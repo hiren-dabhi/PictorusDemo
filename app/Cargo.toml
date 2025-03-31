@@ -1,0 +1,22 @@
+[package]
+name = "demoapp_67ea8ab66a4093c50166016a"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4.26"
+corelib-traits = { path = "../corelib-traits" }
+embedded-io = "0.6.1"
+linux-protocols = { path = "../platforms/linux" }
+log = "0.4.21"
+pictorus-core-blocks = { path = "../pictorus-core-blocks" }
+protocols = { path = "../protocols" }
+rust_code_gen = { path = "../rust_code_gen" }
+signal-hook = "0.3.14"
+std-embedded-time = "0.1.0"
+
+[build-dependencies]
+
+[features]
+default = [ "rust_code_gen/can", "protocols/can", "rust_code_gen/spi", "protocols/spi",]
+sim = [ "rust_code_gen/sim",]
