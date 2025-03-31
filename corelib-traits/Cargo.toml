@@ -1,0 +1,10 @@
+[package]
+edition = "2021"
+name = "corelib-traits"
+publish = false
+
+[lib]
+doctest = false
+
+[features]
+alloc = []

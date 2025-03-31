@@ -1,0 +1,10 @@
+[package]
+name = "corelib-traits-testing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+derive-new = { version = "0.7.0", default-features = false }
+
+[dependencies.corelib-traits]
+path = "../corelib-traits"

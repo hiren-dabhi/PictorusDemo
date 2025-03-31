@@ -1,0 +1,25 @@
+[package]
+edition = "2021"
+name = "pictorus-core-blocks"
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+heapless = "0.8.0"
+nalgebra = { version = "0.33.2", default-features = false }
+num-traits = { version = "0.2.19", default-features = false, features = [ "libm",] }
+utils = { path = "../utils" }
+corelib-traits = { path = "../corelib-traits", features = [ "alloc",] }
+rand = { version = "0.8.5", default-features = false, features = [ "small_rng",] }
+rand_distr = { version = "0.4.3", default-features = false }
+strum = { version = "0.25.0", default-features = false, features = [ "derive",] }
+
+[dev-dependencies]
+corelib-traits-testing = { path = "../corelib-traits-testing" }
+approx = "0.5.1"
+paste = "1.0.15"
+
+[dependencies.pictorus-nalgebra-interop]
+path = "../pictorus-nalgebra-interop"
