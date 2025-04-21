@@ -1,7 +1,10 @@
+use corelib_traits::{ByteSliceSignal, InputBlock, OutputBlock};
 use log::debug;
+use pictorus_core_blocks::{UdpReceiveBlockParams, UdpTransmitBlockParams};
 use protocols::UdpProtocol;
 use std::io::{Error, ErrorKind};
 use std::net::UdpSocket;
+use utils::byte_data::BUFF_SIZE_BYTES;
 
 use utils::PictorusError;
 
@@ -51,36 +54,41 @@ impl UdpConnection {
             socket: create_udp_socket(address, transmit_enabled)?,
         })
     }
+
+    fn read_into_vec(&mut self) -> Result<Vec<u8>, Error> {
+        if let Some(socket) = &mut self.socket {
+            // Set the cache regardless of the result so we don't read again until flush is called
+            let mut num_bytes_read = 0;
+            let mut output = vec![0; BUFF_SIZE_BYTES];
+            // Only use the most recent value on the socket
+            while let Ok((n, _)) = socket.recv_from(&mut output) {
+                num_bytes_read = n;
+            }
+
+            debug!("Received {} bytes", num_bytes_read);
+            output.resize(num_bytes_read, 0);
+            Ok(output)
+        } else {
+            Err(Error::new(ErrorKind::NotConnected, "I/O disabled"))
+        }
+    }
 }
 
-// TODO: This is almost identical to SerialProtocol. We might be able to combine into a common trait
 impl UdpProtocol for UdpConnection {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        if self.cache.is_none() {
-            if let Some(socket) = &mut self.socket {
-                // Set the cache regardless of the result so we don't read again until flush is called
-                let mut num_bytes_read = 0;
-                // Only use the most recent value on the socket
-                while let Ok((n, _)) = socket.recv_from(buf) {
-                    num_bytes_read = n;
-                }
-
-                debug!("Received {} bytes", num_bytes_read);
-                self.cache = Some(Vec::from(&buf[..num_bytes_read]));
+    fn read(&mut self) -> Result<&[u8], Error> {
+        let cache = match self.cache {
+            Some(ref mut cache) => cache,
+            None => {
+                let read_bytes = self.read_into_vec()?;
+                self.cache.insert(read_bytes)
             }
+        };
+
+        if cache.is_empty() {
+            Err(Error::new(ErrorKind::WouldBlock, "No data received"))
+        } else {
+            Ok(cache.as_slice())
         }
-
-        if let Some(cache) = &self.cache {
-            if cache.is_empty() {
-                return Err(Error::new(ErrorKind::WouldBlock, "No data received"));
-            }
-
-            let len = buf.len().min(cache.len());
-            buf[..len].copy_from_slice(&cache[..len]);
-            return Ok(len);
-        }
-
-        Err(Error::new(ErrorKind::NotConnected, "I/O disabled"))
     }
 
     fn write(&mut self, buf: &[u8], to_addr: &str) -> Result<usize, Error> {
@@ -93,5 +101,32 @@ impl UdpProtocol for UdpConnection {
 
     fn flush(&mut self) {
         self.cache = None;
+    }
+}
+
+impl InputBlock for UdpConnection {
+    type Output = ByteSliceSignal;
+    type Parameters = UdpReceiveBlockParams;
+
+    fn input(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+    ) -> corelib_traits::PassBy<'_, Self::Output> {
+        self.read().unwrap_or_default()
+    }
+}
+
+impl OutputBlock for UdpConnection {
+    type Inputs = ByteSliceSignal;
+    type Parameters = UdpTransmitBlockParams;
+
+    fn output(
+        &mut self,
+        parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+        inputs: corelib_traits::PassBy<'_, Self::Inputs>,
+    ) {
+        self.write(inputs, parameters.destination()).ok();
     }
 }

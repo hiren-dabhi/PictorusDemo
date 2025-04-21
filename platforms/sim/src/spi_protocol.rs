@@ -1,23 +1,48 @@
 use std::convert::Infallible;
 
-use protocols::SpiProtocol;
+use corelib_traits::{ByteSliceSignal, Context, InputBlock, OutputBlock, PassBy};
+use pictorus_core_blocks::{SpiReceiveBlockParams, SpiTransmitBlockParams};
+use protocols::Flush;
 
-pub struct SimSpi {}
+pub struct SimSpi {
+    cache: Vec<u8>,
+}
 
 impl SimSpi {
     pub fn new() -> Result<Self, Infallible> {
-        Ok(SimSpi {})
+        Ok(SimSpi { cache: Vec::new() })
     }
 }
 
-impl SpiProtocol for SimSpi {
-    type Error = Infallible;
+impl InputBlock for SimSpi {
+    type Output = ByteSliceSignal;
+    type Parameters = SpiReceiveBlockParams;
 
-    fn write(&mut self, _data: &[u8]) -> Result<(), Self::Error> {
-        Ok(())
+    fn input(
+        &mut self,
+        parameters: &Self::Parameters,
+        _context: &dyn Context,
+    ) -> PassBy<'_, Self::Output> {
+        self.cache.resize(parameters.read_bytes, 0);
+        &self.cache
     }
+}
 
-    fn read(&mut self, _data: &mut [u8]) -> Result<(), Self::Error> {
-        Ok(())
+impl OutputBlock for SimSpi {
+    type Inputs = ByteSliceSignal;
+    type Parameters = SpiTransmitBlockParams;
+
+    fn output(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn Context,
+        _inputs: PassBy<'_, Self::Inputs>,
+    ) {
+        // Do nothing
+        // This is a simulation, so we don't actually send any data
     }
+}
+
+impl Flush for SimSpi {
+    fn flush(&mut self) {}
 }

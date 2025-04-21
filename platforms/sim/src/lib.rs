@@ -1,14 +1,13 @@
-mod camera_protocol;
-pub use camera_protocol::*;
+extern crate alloc;
+
+mod adc_protocol;
+pub use adc_protocol::*;
 
 mod clock_protocol;
 pub use clock_protocol::*;
 
 mod delay_protocol;
 pub use delay_protocol::*;
-
-// mod display_protocol;
-// pub use display_protocol::*;
 
 mod gpio_protocol;
 pub use gpio_protocol::*;

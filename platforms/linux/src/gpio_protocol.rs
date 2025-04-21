@@ -1,14 +1,45 @@
-pub use embedded_hal::digital::{InputPin, OutputPin};
-use utils::PictorusError;
-
 use alloc::{format, string::String};
 
+use corelib_traits::{Context, InputBlock, OutputBlock, PassBy};
+pub use embedded_hal::digital::{ErrorType, InputPin, OutputPin};
 use linux_embedded_hal::gpio_cdev::{Chip, LineRequestFlags};
-pub use linux_embedded_hal::CdevPin;
+use pictorus_core_blocks::{GpioInputBlockParams, GpioOutputBlockParams};
+use utils::PictorusError;
 
 // TODO: This should be configurable by block param
 const GPIO_CHIP: &str = "/dev/gpiochip0";
 const ERR_TYPE: &str = "GpioProtocol";
+
+pub struct CdevPin(linux_embedded_hal::CdevPin);
+impl CdevPin {
+    pub fn new(inner: linux_embedded_hal::CdevPin) -> Result<Self, PictorusError> {
+        Ok(CdevPin(inner))
+    }
+}
+
+impl ErrorType for CdevPin {
+    type Error = <linux_embedded_hal::CdevPin as ErrorType>::Error;
+}
+
+impl InputPin for CdevPin {
+    fn is_high(&mut self) -> Result<bool, Self::Error> {
+        self.0.is_high()
+    }
+
+    fn is_low(&mut self) -> Result<bool, Self::Error> {
+        self.0.is_low()
+    }
+}
+
+impl OutputPin for CdevPin {
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        self.0.set_high()
+    }
+
+    fn set_low(&mut self) -> Result<(), Self::Error> {
+        self.0.set_low()
+    }
+}
 
 fn create_error(message: String) -> PictorusError {
     PictorusError::new(ERR_TYPE.into(), message)
@@ -37,7 +68,8 @@ fn create_cdev_pin(
         .request(flag, 0, "pictorus")
         .map_err(|_| create_pin_error(pin_line))?;
 
-    CdevPin::new(handle).map_err(|_| create_pin_error(pin_line))
+    let inner = linux_embedded_hal::CdevPin::new(handle).map_err(|_| create_pin_error(pin_line))?;
+    Ok(CdevPin(inner))
 }
 
 pub fn create_gpio_input_pin(pin_number: f64) -> Result<CdevPin, PictorusError> {
@@ -46,4 +78,35 @@ pub fn create_gpio_input_pin(pin_number: f64) -> Result<CdevPin, PictorusError> 
 
 pub fn create_gpio_output_pin(pin_number: f64) -> Result<CdevPin, PictorusError> {
     create_cdev_pin(GPIO_CHIP, pin_number, LineRequestFlags::OUTPUT)
+}
+
+impl InputBlock for CdevPin {
+    type Output = f64;
+    type Parameters = GpioInputBlockParams;
+
+    fn input(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn Context,
+    ) -> PassBy<'_, Self::Output> {
+        self.is_high().unwrap_or(false).into()
+    }
+}
+
+impl OutputBlock for CdevPin {
+    type Inputs = bool;
+    type Parameters = GpioOutputBlockParams;
+
+    fn output(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn Context,
+        inputs: PassBy<'_, Self::Inputs>,
+    ) {
+        if inputs {
+            self.set_high().ok();
+        } else {
+            self.set_low().ok();
+        }
+    }
 }

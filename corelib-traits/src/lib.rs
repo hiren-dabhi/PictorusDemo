@@ -1,59 +1,26 @@
+//! This repository defines the core traits that define what a "block" is in the Pictorus platform. Additionally this repository contains
+//! the implementations of the blocks provided with Pictorus.
+//!
+//! # Pictorus Trait Design
+//! These traits define what a "block" is in Pictorus. Blocks are the fundamental unit of computation used in the GUI, we provide a library
+//! of blocks that cover most use cases, however a major goal of this trait system is to allow users to implement custom functionality by
+//! writing their own implementation of these traits. The Block traits provide a consistent interface that allows the Front end and Code
+//! generator to work with all blocks (custom and otherwise) the same way.
+
 #![no_std]
 // and conditionally no_alloc
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
-use core::cell::Ref;
 use core::mem;
 use core::time::Duration;
 
-#[cfg(feature = "alloc")]
-pub use alloc_impls::DMatrix;
-use hal::{GpioOutputBlock, SerialReceiveBlock, SerialTransmitBlock};
-use sealed::Sealed;
-#[cfg(feature = "alloc")]
-pub use transition_impls::BlockData;
-
-#[cfg(feature = "alloc")]
-mod alloc_impls;
-pub mod hal;
 mod sealed;
-#[cfg(feature = "alloc")]
-mod transition_impls;
-
-/// A state is a collection of blocks with transitions and without inputs and outputs
-pub trait State<'m>: BlocksNew<'m> {
-    type NextState;
-
-    fn run(&mut self, context: &dyn Context) -> Option<Self::NextState>;
-}
-
-/// A component is a collection of blocks with optional inputs and outputs
-pub trait Component<'m>: BlocksNew<'m> {
-    type Inputs: Pass + ?Sized;
-    type Output: Pass + ?Sized;
-
-    fn run<'c>(
-        &'c mut self,
-        context: &dyn Context,
-        inputs: PassBy<'_, Self::Inputs>,
-    ) -> PassBy<'c, Self::Output>;
-
-    /// hook to perform any resource clean-up
-    fn on_tick_end(&mut self) {}
-}
-
-/// Constructor method for a *group* of blocks
-pub trait BlocksNew<'m> {
-    fn new(device_manager: &'m impl DeviceManager) -> Self;
-}
+use sealed::Sealed;
 
 /// A processing block
 pub trait ProcessBlock: Default {
     // NOTE because of the `Inputs` trait bound; all blocks must have at least *one* input
-    type Inputs: Pass + ?Sized;
-    type Output: Pass + ?Sized;
+    type Inputs: Pass;
+    type Output: Pass;
     type Parameters;
 
     fn process<'b>(
@@ -64,11 +31,8 @@ pub trait ProcessBlock: Default {
     ) -> PassBy<'b, Self::Output>;
 }
 
-/// Updates a block parameter
-pub trait Update {
-    type Parameter;
-
-    fn update(&mut self, parameter: Self::Parameter);
+pub trait HasIc: ProcessBlock {
+    fn new(parameters: &Self::Parameters) -> Self;
 }
 
 /// A generator block
@@ -76,7 +40,7 @@ pub trait Update {
 /// This block has no inputs
 pub trait GeneratorBlock: Default {
     type Parameters;
-    type Output: Pass + ?Sized;
+    type Output: Pass;
 
     fn generate(
         &mut self,
@@ -87,71 +51,45 @@ pub trait GeneratorBlock: Default {
 
 /// An output block
 ///
-/// This block has no output and usually performs a "side effect" instead of outputting data
+/// This block has no output signals and usually performs a "side effect" instead of outputting data.
 pub trait OutputBlock {
-    type Inputs: Pass + ?Sized;
+    type Inputs: Pass;
+    type Parameters;
 
-    fn output(&self, context: &dyn Context, inputs: PassBy<'_, Self::Inputs>);
+    fn output(
+        &mut self,
+        parameters: &Self::Parameters,
+        context: &dyn Context,
+        inputs: PassBy<'_, Self::Inputs>,
+    );
 }
 
 /// An input block
 ///
-/// This block has no inputs. Unlike a `GeneratorBlock` it outputs data from the real world rather
+/// This block has no inputs signals. Unlike a `GeneratorBlock` it outputs data from the real world rather
 /// than synthetic data.
 pub trait InputBlock {
-    type Output: Lend + ?Sized;
+    type Output: Pass;
+    type Parameters;
 
-    fn input(&self, context: &dyn Context) -> LendAs<'_, Self::Output>;
-}
-
-/// Application-specific "device" manager
-pub trait DeviceManager {
-    /// Initializes hardware according to device tree information
-    fn new() -> Self;
-
-    fn gpio_output_block(&self, _index: usize) -> Option<GpioOutputBlock<'_>> {
-        None
-    }
-
-    fn serial_receive_block(&self, _index: usize) -> Option<SerialReceiveBlock<'_>> {
-        None
-    }
-
-    fn serial_transmit_block(&self, _index: usize) -> Option<SerialTransmitBlock<'_>> {
-        None
-    }
-
-    /// Runs at the start of each tick
-    fn on_tick_start(&self);
-    /// Runs at the end of each tick
-    fn on_tick_end(&self);
+    fn input(
+        &mut self,
+        parameters: &Self::Parameters,
+        context: &dyn Context,
+    ) -> PassBy<'_, Self::Output>;
 }
 
 /// The execution context
 // this trait avoids leaking types associated to the "runtime" into the signature of
 // `{Block,Generator}::run`
 pub trait Context {
-    // XXX should the return type be an `Option`? the very first call of `timestep` returns
-    // `None` and all the subsequent calls return `Some`
-    fn timestep(&self) -> Duration;
+    // This is defined as the actual elapsed time since the last tick, Will return None if the
+    // model is on its first tick
+    fn timestep(&self) -> Option<Duration>;
     /// Time elapsed since the start of the program / simulation
     fn time(&self) -> Duration;
-}
-
-pub trait DurationExt<T> {
-    fn as_sec_float(&self) -> T;
-}
-
-impl DurationExt<f32> for Duration {
-    fn as_sec_float(&self) -> f32 {
-        self.as_secs_f32()
-    }
-}
-
-impl DurationExt<f64> for Duration {
-    fn as_sec_float(&self) -> f64 {
-        self.as_secs_f64()
-    }
+    // Fundamental Timestep, The goal timestep for the model
+    fn fundamental_timestep(&self) -> Duration;
 }
 
 /// Data can be passed between blocks
@@ -286,26 +224,20 @@ where
 
 impl<const N: usize, T> Sealed for [T; N] where T: Scalar {}
 
-impl Pass for [u8] {
-    type By<'a> = &'a Self;
+/// This is a Zero-Size-Type that is used as a stand-in for `[u8]` when using the `Pass` trait
+/// Because `[u8]` is a dynamically-sized type it is not possible to use something like `([u8], [u8])` as a generic
+/// parameter. This type is used to work around that limitation. It defines `By = &[u8]` so the correct type is still
+/// passed to or from blocks
+pub struct ByteSliceSignal;
+
+impl Sealed for ByteSliceSignal {}
+
+impl Pass for ByteSliceSignal {
+    type By<'a> = &'a [u8];
 
     fn as_by(&self) -> Self::By<'_> {
-        self
+        &[]
     }
-}
-
-impl Sealed for [u8] {}
-
-/// Like `Pass` but allows returning `cell::Ref` from `InputBlock`s
-pub trait Lend: Sealed + 'static {
-    /// How the data is loaned
-    type As<'a>;
-}
-
-pub type LendAs<'a, T> = <T as Lend>::As<'a>;
-
-impl Lend for [u8] {
-    type As<'a> = Ref<'a, Self>;
 }
 
 /// Matrix in column-major order
@@ -339,15 +271,6 @@ impl<const NROWS: usize, const NCOLS: usize, T> Matrix<NROWS, NCOLS, T>
 where
     T: Scalar,
 {
-    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Matrix<NROWS, NCOLS, U>
-    where
-        U: Scalar,
-    {
-        Matrix {
-            data: self.data.map(|col| col.map(&mut f)),
-        }
-    }
-
     pub fn zeroed() -> Self {
         // SAFETY: `T: Scalar` is "sealed" so we know all the types it could be instantiated to and
         // we also know they are all primitives / "plain old data" so all bits set to zero is
@@ -384,7 +307,7 @@ impl Sealed for () {}
 impl<A, B> Pass for (A, B)
 where
     A: Pass,
-    B: Pass + ?Sized,
+    B: Pass,
 {
     type By<'a> = (PassBy<'a, A>, PassBy<'a, B>);
 
@@ -396,7 +319,7 @@ where
 impl<A, B> Sealed for (A, B)
 where
     A: Pass,
-    B: Pass + ?Sized,
+    B: Pass,
 {
 }
 
@@ -404,7 +327,7 @@ impl<A, B, C> Pass for (A, B, C)
 where
     A: Pass,
     B: Pass,
-    C: Pass + ?Sized,
+    C: Pass,
 {
     type By<'a> = (PassBy<'a, A>, PassBy<'a, B>, PassBy<'a, C>);
 
@@ -416,7 +339,7 @@ impl<A, B, C> Sealed for (A, B, C)
 where
     A: Pass,
     B: Pass,
-    C: Pass + ?Sized,
+    C: Pass,
 {
 }
 
@@ -425,7 +348,7 @@ where
     A: Pass,
     B: Pass,
     C: Pass,
-    D: Pass + ?Sized,
+    D: Pass,
 {
     type By<'a> = (PassBy<'a, A>, PassBy<'a, B>, PassBy<'a, C>, PassBy<'a, D>);
 
@@ -443,7 +366,7 @@ where
     A: Pass,
     B: Pass,
     C: Pass,
-    D: Pass + ?Sized,
+    D: Pass,
 {
 }
 
@@ -453,7 +376,7 @@ where
     B: Pass,
     C: Pass,
     D: Pass,
-    E: Pass + ?Sized,
+    E: Pass,
 {
     type By<'a> = (
         PassBy<'a, A>,
@@ -479,7 +402,7 @@ where
     B: Pass,
     C: Pass,
     D: Pass,
-    E: Pass + ?Sized,
+    E: Pass,
 {
 }
 
@@ -490,7 +413,7 @@ where
     C: Pass,
     D: Pass,
     E: Pass,
-    F: Pass + ?Sized,
+    F: Pass,
 {
     type By<'a> = (
         PassBy<'a, A>,
@@ -519,7 +442,7 @@ where
     C: Pass,
     D: Pass,
     E: Pass,
-    F: Pass + ?Sized,
+    F: Pass,
 {
 }
 
@@ -531,7 +454,7 @@ where
     D: Pass,
     E: Pass,
     F: Pass,
-    G: Pass + ?Sized,
+    G: Pass,
 {
     type By<'a> = (
         PassBy<'a, A>,
@@ -563,7 +486,7 @@ where
     D: Pass,
     E: Pass,
     F: Pass,
-    G: Pass + ?Sized,
+    G: Pass,
 {
 }
 
@@ -576,7 +499,7 @@ where
     E: Pass,
     F: Pass,
     G: Pass,
-    H: Pass + ?Sized,
+    H: Pass,
 {
     type By<'a> = (
         PassBy<'a, A>,
@@ -611,6 +534,6 @@ where
     E: Pass,
     F: Pass,
     G: Pass,
-    H: Pass + ?Sized,
+    H: Pass,
 {
 }

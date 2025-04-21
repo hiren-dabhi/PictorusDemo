@@ -1,13 +1,20 @@
 use std::io::{Read, Write};
 
+use alloc::vec::Vec;
+use corelib_traits::ByteSliceSignal;
+use corelib_traits::{Context, InputBlock, OutputBlock, PassBy};
 use linux_embedded_hal::spidev::{Spidev, SpidevOptions};
-use linux_embedded_hal::CdevPin;
-use protocols::SpiProtocol;
+use pictorus_core_blocks::{SpiReceiveBlockParams, SpiTransmitBlockParams};
+use protocols::{Flush, OutputPin};
 use utils::PictorusError;
+
+use crate::CdevPin;
 
 pub struct SpiConnection {
     device: Spidev,
     cs: CdevPin,
+    cache: Vec<u8>,
+    is_cache_valid: bool,
 }
 
 impl SpiConnection {
@@ -43,42 +50,110 @@ impl SpiConnection {
             )
         })?;
 
-        Ok(SpiConnection { device: spi, cs })
+        Ok(SpiConnection {
+            device: spi,
+            cs,
+            cache: Vec::new(),
+            is_cache_valid: false,
+        })
     }
 }
 
-impl SpiProtocol for SpiConnection {
-    type Error = PictorusError;
+impl InputBlock for SpiConnection {
+    type Output = ByteSliceSignal;
+    type Parameters = SpiReceiveBlockParams;
 
-    fn write(&mut self, data: &[u8]) -> Result<(), Self::Error> {
-        self.cs.set_value(0).map_err(|_err| {
-            PictorusError::new(
-                "SpiConnection".into(),
-                "Failed to set CS pin in ::write".into(),
-            )
-        })?;
-        self.device.write(data).map_err(|_err| {
-            PictorusError::new(
-                "SpiConnection".into(),
-                "Failed to write to SPI device in ::write_u8".into(),
-            )
-        })?;
-        Ok(())
+    fn input(
+        &mut self,
+        parameters: &Self::Parameters,
+        _context: &dyn Context,
+    ) -> PassBy<'_, Self::Output> {
+        if !self.is_cache_valid {
+            self.is_cache_valid = true;
+
+            // Resize cache
+            self.cache.resize(parameters.read_bytes, 0);
+
+            // Attempt to read
+            let result = self
+                .device
+                .read_exact(self.cache.as_mut_slice())
+                .map_err(|_err| {
+                    PictorusError::new(
+                        "SpiConnection".into(),
+                        "Failed to read from SPI device in ::read".into(),
+                    )
+                });
+
+            if result.is_err() {
+                // TODO: Error handling?
+                // Keep the results, good or bad, in memory
+            }
+
+            let result = self.cs.set_high().map_err(|_err| {
+                PictorusError::new(
+                    "SpiConnection".into(),
+                    "Failed to set CS pin in ::write".into(),
+                )
+            });
+
+            if result.is_err() {
+                // TODO: Error handling?
+                // Keep the results, good or bad, in memory
+            }
+        }
+
+        &self.cache
     }
+}
 
-    fn read(&mut self, data: &mut [u8]) -> Result<(), Self::Error> {
-        self.device.read_exact(data).map_err(|_err| {
-            PictorusError::new(
-                "SpiConnection".into(),
-                "Failed to read from SPI device in ::read".into(),
-            )
-        })?;
-        self.cs.set_value(1).map_err(|_err| {
-            PictorusError::new(
-                "SpiConnection".into(),
-                "Failed to set CS pin in ::write".into(),
-            )
-        })?;
-        Ok(())
+impl OutputBlock for SpiConnection {
+    type Inputs = ByteSliceSignal;
+    type Parameters = SpiTransmitBlockParams;
+
+    fn output(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn Context,
+        inputs: PassBy<'_, Self::Inputs>,
+    ) {
+        // TODO: Error handling?
+        self.cs
+            .set_low()
+            .map_err(|_err| {
+                PictorusError::new(
+                    "SpiConnection".into(),
+                    "Failed to set CS pin in ::write".into(),
+                )
+            })
+            .ok();
+
+        // TODO: Error handling?
+        self.device
+            .write(inputs)
+            .map_err(|_err| {
+                PictorusError::new(
+                    "SpiConnection".into(),
+                    "Failed to write to SPI device in ::write_u8".into(),
+                )
+            })
+            .ok();
+    }
+}
+
+impl Flush for SpiConnection {
+    fn flush(&mut self) {
+        // Automatically set CS high after flush
+        self.cs
+            .set_high()
+            .map_err(|_err| {
+                PictorusError::new(
+                    "SpiConnection".into(),
+                    "Failed to set CS pin in ::write".into(),
+                )
+            })
+            .ok();
+        self.cache.clear();
+        self.is_cache_valid = false;
     }
 }

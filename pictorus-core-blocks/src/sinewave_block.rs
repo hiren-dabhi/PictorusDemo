@@ -1,12 +1,11 @@
-use core::time::Duration;
-use corelib_traits::{DurationExt, GeneratorBlock, Scalar};
-use num_traits::Float;
+use crate::traits::Float;
+use corelib_traits::GeneratorBlock;
 use utils::block_data::BlockData;
 
 #[derive(Debug, Clone)]
 pub struct SinewaveBlock<T>
 where
-    T: Scalar + Float,
+    T: Float,
     f64: From<T>,
 {
     phantom: core::marker::PhantomData<T>,
@@ -15,7 +14,7 @@ where
 
 impl<T> Default for SinewaveBlock<T>
 where
-    T: Scalar + Float,
+    T: Float,
     f64: From<T>,
 {
     fn default() -> Self {
@@ -28,9 +27,8 @@ where
 
 impl<T> GeneratorBlock for SinewaveBlock<T>
 where
-    T: Scalar + Float,
+    T: Float,
     f64: From<T>,
-    Duration: DurationExt<T>,
 {
     type Parameters = Parameters<T>;
     type Output = T;
@@ -40,9 +38,9 @@ where
         parameters: &Self::Parameters,
         context: &dyn corelib_traits::Context,
     ) -> corelib_traits::PassBy<Self::Output> {
-        let time = context.time().as_sec_float();
+        let time = T::from_duration(context.time());
         let sin_val = parameters.amplitude
-            * Float::sin(parameters.frequency * time + parameters.phase)
+            * num_traits::Float::sin(parameters.frequency * time + parameters.phase)
             + parameters.bias;
         self.data = BlockData::from_scalar(sin_val.into());
         sin_val
@@ -50,14 +48,14 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct Parameters<T: Scalar> {
+pub struct Parameters<T: Float> {
     pub amplitude: T,
     pub frequency: T,
     pub phase: T,
     pub bias: T,
 }
 
-impl<T: Scalar> Parameters<T> {
+impl<T: Float> Parameters<T> {
     pub fn new(amplitude: T, frequency: T, phase: T, bias: T) -> Self {
         Self {
             amplitude,
@@ -74,6 +72,7 @@ mod tests {
 
     use core::time::Duration;
     use corelib_traits_testing::StubContext;
+    use num_traits::Float;
 
     #[test]
     fn test_sine_wave() {
@@ -85,7 +84,7 @@ mod tests {
             bias: 0.0,
         };
 
-        let mut context = StubContext::new(Duration::from_secs(0), Duration::from_secs(0));
+        let mut context = StubContext::default();
 
         assert_eq!(block.generate(&parameters, &context), Float::sin(0.5));
         assert_eq!(block.data.scalar(), Float::sin(0.5));

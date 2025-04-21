@@ -5,6 +5,9 @@ edition = "2021"
 
 [dependencies]
 protocols = { path = "../../protocols", default-features = false }
+corelib-traits = { path = "../../corelib-traits" }
+pictorus-core-blocks = { path = "../../pictorus-core-blocks" }
+utils = { path = "../../utils" }
 embassy-futures = "0.1.1"
 embassy-stm32 = { git = "https://github.com/embassy-rs/embassy.git", rev = "68c8238" }
 embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "68c8238" }
@@ -17,11 +20,14 @@ embedded-hal-02 = { package = "embedded-hal", version = "0.2.6", features = [ "u
 nb = "1.1.0"
 log = "0.4.21"
 rtt-target = { git = "https://github.com/Pictorus-Labs/rtt-target", branch = "alignment-fix" }
+heapless = "0.8.0"
 
 [features]
-default = [ "spi", "fdcan",]
-with-chip = [ "embassy-stm32/stm32u5a5zj", "fdcan", "interrupt-uart",]
+default = [ "spi", "fdcan", "adc",]
+with-chip = [ "embassy-stm32/stm32g474re", "fdcan", "interrupt-uart",]
 interrupt-uart = []
 fdcan = [ "protocols/fdcan",]
 can = [ "protocols/can",]
-spi = [ "protocols/spi",]
+spi = []
+adc = [ "protocols/adc",]
+dac = [ "protocols/dac",]

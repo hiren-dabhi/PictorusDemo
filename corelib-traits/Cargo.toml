@@ -5,6 +5,3 @@ publish = false
 
 [lib]
 doctest = false
-
-[features]
-alloc = []

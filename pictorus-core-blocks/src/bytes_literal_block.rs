@@ -1,4 +1,4 @@
-use corelib_traits::GeneratorBlock;
+use corelib_traits::{ByteSliceSignal, GeneratorBlock};
 use utils::BlockData;
 
 pub struct Parameters<const CHARS: usize> {
@@ -26,7 +26,7 @@ impl<const CHARS: usize> Default for BytesLiteralBlock<CHARS> {
 }
 
 impl<const CHARS: usize> GeneratorBlock for BytesLiteralBlock<CHARS> {
-    type Output = [u8];
+    type Output = ByteSliceSignal;
     type Parameters = Parameters<CHARS>;
 
     fn generate(
@@ -44,7 +44,6 @@ impl<const CHARS: usize> GeneratorBlock for BytesLiteralBlock<CHARS> {
 mod tests {
     use super::*;
 
-    use core::time::Duration;
     use corelib_traits_testing::StubContext;
     use std::string::String;
     use utils::ToPass;
@@ -56,7 +55,7 @@ mod tests {
         let bytes_literal_ic = BlockData::from_bytes(String::from("Hello World").as_bytes());
 
         let parameters = Parameters::new(bytes_literal_ic.to_pass());
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_millis(100));
+        let context = StubContext::default();
 
         let output = block.generate(&parameters, &context);
         assert_eq!(output, "Hello World".as_bytes());

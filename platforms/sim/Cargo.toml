@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-protocols = { path = "../../protocols", features = [ "can", "spi",] }
+protocols = { path = "../../protocols", features = [ "can", "adc",] }
 log = "0.4.21"
 embedded-time = "0.12.1"
 embedded-hal = "1.0.0"
@@ -12,3 +12,5 @@ embedded-hal-02 = { package = "embedded-hal", version = "0.2.6", features = [ "u
 embedded-io = "0.6.1"
 embedded-can = "0.4.1"
 nb = "1.1.0"
+corelib-traits = { path = "../../corelib-traits" }
+pictorus-core-blocks = { path = "../../pictorus-core-blocks" }

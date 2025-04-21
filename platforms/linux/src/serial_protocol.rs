@@ -1,7 +1,10 @@
+use corelib_traits::{ByteSliceSignal, InputBlock};
 use embedded_io::{ErrorType, Read, Write};
 use log::{debug, info};
+use pictorus_core_blocks::{SerialReceiveBlockParams, SerialTransmitBlockParams};
 use serialport::{self, SerialPort};
 use std::io;
+use utils::byte_data::BUFF_SIZE_BYTES;
 use utils::PictorusError;
 
 pub fn create_serial_port(
@@ -35,7 +38,8 @@ pub fn create_serial_port(
 
 pub struct SerialConnection {
     port: Option<Box<dyn SerialPort>>,
-    cache: Option<Vec<u8>>,
+    cache: Vec<u8>,
+    is_cache_valid: bool,
     port_addr: String,
 }
 
@@ -44,9 +48,26 @@ impl SerialConnection {
         info!("Opening serial port {} with baud {}", port, baud);
         Ok(SerialConnection {
             port: create_serial_port(port, baud, transmit_enabled)?,
-            cache: None,
+            cache: Vec::new(),
             port_addr: port.to_string(),
+            is_cache_valid: false,
         })
+    }
+}
+
+impl InputBlock for SerialConnection {
+    type Output = ByteSliceSignal;
+    type Parameters = SerialReceiveBlockParams;
+
+    fn input(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+    ) -> corelib_traits::PassBy<'_, Self::Output> {
+        if let Ok(len) = self.read(&mut []) {
+            self.cache.resize(len, 0);
+        }
+        &self.cache
     }
 }
 
@@ -55,32 +76,30 @@ impl ErrorType for SerialConnection {
 }
 
 impl Read for SerialConnection {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
-        if self.cache.is_none() {
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize, io::Error> {
+        if !self.is_cache_valid {
             if let Some(port) = &mut self.port {
-                // Set the cache regardless of the result so we don't read again until flush is called
-                let res = port.read(buf);
+                self.cache.resize(BUFF_SIZE_BYTES, 0);
+                let res = port.read(&mut self.cache);
                 let size = match res {
                     Ok(size) => size,
                     Err(err) => {
-                        self.cache = Some(Vec::new());
+                        // TODO: Handle error
+                        // Keep the results, good or bad, in memory
                         return Err(err);
                     }
                 };
-                self.cache = Some(Vec::from(&buf[..size]));
+                self.is_cache_valid = true;
+                return Ok(size);
             }
-        }
-
-        if let Some(cache) = &self.cache {
-            if cache.is_empty() {
+        } else {
+            let len = self.cache.len();
+            if len == 0 {
                 return Err(io::Error::new(
                     io::ErrorKind::WouldBlock,
                     "No data available",
                 ));
             }
-
-            let len = buf.len().min(cache.len());
-            buf[..len].copy_from_slice(&cache[..len]);
             return Ok(len);
         }
         Err(io::Error::new(io::ErrorKind::NotConnected, "I/O disabled"))
@@ -96,8 +115,23 @@ impl Write for SerialConnection {
     }
 
     fn flush(&mut self) -> Result<(), io::Error> {
-        self.cache = None;
+        self.cache.clear();
+        self.is_cache_valid = false;
         Ok(())
+    }
+}
+
+impl corelib_traits::OutputBlock for SerialConnection {
+    type Inputs = corelib_traits::ByteSliceSignal;
+    type Parameters = SerialTransmitBlockParams;
+
+    fn output(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+        inputs: corelib_traits::PassBy<'_, Self::Inputs>,
+    ) {
+        self.write(inputs).ok();
     }
 }
 

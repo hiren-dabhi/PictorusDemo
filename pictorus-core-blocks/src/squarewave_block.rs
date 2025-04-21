@@ -1,9 +1,8 @@
-use core::time::Duration;
-use corelib_traits::{DurationExt, GeneratorBlock, Scalar};
-use num_traits::Float;
+use crate::traits::Float;
+use corelib_traits::GeneratorBlock;
 use utils::BlockData;
 
-pub struct Parameters<T: Scalar> {
+pub struct Parameters<T: Float> {
     pub amplitude: T,
     pub on_duration: T,
     pub off_duration: T,
@@ -11,7 +10,7 @@ pub struct Parameters<T: Scalar> {
     pub bias: T,
 }
 
-impl<T: Scalar> Parameters<T> {
+impl<T: Float> Parameters<T> {
     pub fn new(amplitude: T, on_duration: T, off_duration: T, phase: T, bias: T) -> Self {
         Self {
             amplitude,
@@ -23,14 +22,13 @@ impl<T: Scalar> Parameters<T> {
     }
 }
 
-pub struct SquarewaveBlock<T: Scalar + Float> {
+pub struct SquarewaveBlock<T: Float> {
     phantom_output_type: core::marker::PhantomData<T>,
     pub data: BlockData,
 }
 
-impl<T: Scalar + Float> Default for SquarewaveBlock<T>
+impl<T: Float> Default for SquarewaveBlock<T>
 where
-    T: Scalar + Float,
     f64: From<T>,
 {
     fn default() -> Self {
@@ -43,9 +41,8 @@ where
 
 impl<T> GeneratorBlock for SquarewaveBlock<T>
 where
-    T: Scalar + Float,
+    T: Float,
     f64: From<T>,
-    Duration: DurationExt<T>,
 {
     type Output = T;
     type Parameters = Parameters<T>;
@@ -55,13 +52,13 @@ where
         parameters: &Self::Parameters,
         context: &dyn corelib_traits::Context,
     ) -> corelib_traits::PassBy<Self::Output> {
-        let adjusted_time: Self::Output = context.time().as_sec_float() - parameters.phase;
+        let adjusted_time = Self::Output::from_duration(context.time()) - parameters.phase;
         let pulse_time = parameters.on_duration + parameters.off_duration;
         let mut time_since_last_pulse_start: Self::Output = adjusted_time % pulse_time;
 
         if time_since_last_pulse_start < T::zero() {
             // Adjust for negative phase
-            time_since_last_pulse_start = time_since_last_pulse_start + pulse_time
+            time_since_last_pulse_start += pulse_time
         };
 
         let output = if time_since_last_pulse_start > parameters.on_duration {

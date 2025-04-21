@@ -3,28 +3,18 @@
 #![deny(clippy::undocumented_unsafe_blocks)]
 extern crate alloc;
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
-        pub mod thread_manager;
-        pub mod data_logger;
-    }
-}
-
+pub mod loggers;
 pub use utils::block_data;
 pub mod blocks;
-mod stale_tracker;
-pub mod timing;
-pub mod traits;
 pub use utils;
-
-pub mod byte_data;
 
 #[cfg(all(test, feature = "std"))]
 mod tests {
 
     use crate::block_data::BlockData;
     use crate::blocks::{
-        constant_block::ConstantBlock, gain_block::GainBlock, sum_block::SumBlock, ProductBlock,
+        constant_block::ConstantBlock, gain_block::GainBlock, product_block::ProductBlock,
+        sum_block::SumBlock,
     };
     use pretty_assertions::assert_eq;
 

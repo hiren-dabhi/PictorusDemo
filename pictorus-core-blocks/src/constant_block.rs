@@ -22,11 +22,12 @@ where
 impl<T> Default for ConstantBlock<T>
 where
     T: Apply,
+    OldBlockData: FromPass<T::Output>,
 {
     fn default() -> Self {
         Self {
             buffer: None,
-            data: OldBlockData::from_scalar(0.0),
+            data: <OldBlockData as FromPass<T::Output>>::from_pass(<T::Output>::default().as_by()),
         }
     }
 }
@@ -51,7 +52,7 @@ where
 }
 
 pub trait Apply: Pass + Sized {
-    type Output: Pass;
+    type Output: Pass + Default;
 
     fn apply<'s>(
         store: &'s mut Option<Self::Output>,
@@ -90,8 +91,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use core::time::Duration;
     use corelib_traits_testing::StubContext;
     use utils::{BlockData, ToPass};
 
@@ -99,7 +98,7 @@ mod tests {
     fn test_constant_scalar() {
         let mut block = ConstantBlock::<f64>::default();
         let parameters = Parameters::new(3.0);
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_millis(100));
+        let context = StubContext::default();
 
         let output = block.generate(&parameters, &context);
         assert_eq!(output, 3.0);
@@ -112,7 +111,7 @@ mod tests {
 
         let mut block = ConstantBlock::<Matrix<1, 2, f64>>::default();
         let parameters = Parameters::new(BlockData::from_vector(&vector).to_pass());
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_millis(100));
+        let context = StubContext::default();
 
         let output = block.generate(&parameters, &context); // <-- Converts Vector to Matrix in from_pass
         assert_eq!(output.data[0][0], 1.0);
@@ -127,7 +126,7 @@ mod tests {
 
         let mut block = ConstantBlock::<Matrix<2, 2, f64>>::default();
         let parameters = Parameters::new(matrix_as_blockdata.to_pass());
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_millis(100));
+        let context = StubContext::default();
 
         let output = block.generate(&parameters, &context);
         assert_eq!(output.data[0][0], 1.0);

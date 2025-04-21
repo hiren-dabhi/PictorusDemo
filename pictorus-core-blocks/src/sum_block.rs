@@ -57,7 +57,7 @@ trait SumScalar:
 impl SumScalar for f32 {}
 impl SumScalar for f64 {}
 
-///This trait is used to determine the output type of a sum operation
+/// This trait is used to determine the output type of a sum operation
 /// between two types, most importantly it can be used recursively. To get the output type for
 /// a tuple of inputs. For an input of all scalars the output is scalar. For all inputs being a
 /// single size of matrix, or a mix of scalars and a single size of matrix the output is a matrix
@@ -260,7 +260,6 @@ impl<const R: usize, const C: usize, S: SumScalar> Summable for Matrix<R, C, S> 
 
 impl<A, B> Summable for (A, B)
 where
-    (A, B): for<'a> Pass<By<'a> = (PassBy<'a, A>, PassBy<'a, B>)>,
     A: TypePromotion<B>,
     A: SumInto<A::Output>,
     B: SumInto<A::Output>,

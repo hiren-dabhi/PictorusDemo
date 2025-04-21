@@ -19,21 +19,8 @@ pub use embedded_time::Clock;
 #[cfg(any(feature = "can", feature = "fdcan"))]
 pub use embedded_can::{nb::Can, Frame};
 
-#[cfg(feature = "spi")]
-pub use embedded_hal::spi;
-
 #[cfg(feature = "std")]
 extern crate std;
-
-#[cfg_attr(all(feature = "test-utils", feature = "std"), mockall::automock)]
-pub trait CameraProtocol: Send {
-    fn capture(&self, photo_dir: &str, jpeg_quality: u8);
-}
-
-#[cfg_attr(all(feature = "test-utils", feature = "std"), mockall::automock)]
-pub trait DisplayProtocol {
-    fn render(&mut self, value: &str, x_offset: f64);
-}
 
 // TODO: These trait wrappers are kind of dumb. But to move away from them we need to handle
 // buffering in the main file rather than in the protocol implementations.
@@ -46,17 +33,27 @@ pub trait CanProtocol: Can {
 
 #[cfg(feature = "std")]
 pub trait UdpProtocol {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error>;
+    fn read(&mut self) -> Result<&[u8], std::io::Error>;
     fn write(&mut self, buf: &[u8], to_addr: &str) -> Result<usize, std::io::Error>;
     fn flush(&mut self);
 }
 
-#[cfg(feature = "spi")]
-pub trait SpiProtocol {
-    type Error;
+pub trait Flush {
+    fn flush(&mut self);
+}
 
-    fn write(&mut self, data: &[u8]) -> Result<(), Self::Error>;
-    fn read(&mut self, data: &mut [u8]) -> Result<(), Self::Error>;
+#[cfg(feature = "adc")]
+pub trait AdcProtocol {
+    fn read(&mut self) -> u16;
+    fn flush(&mut self);
+}
+
+#[cfg(feature = "dac")]
+pub trait DacProtocol<const CHANNELS: usize, const SAMPLES: usize> {
+    /// Trait function to write a buffer of samples to the DAC. The samples are the ROWS and the
+    /// channels are the COLUMNS. For example, 2 channels and 1 sample for each channel
+    /// would require a reference to a buffer of data that is sized &[[u16; 1]; 2].
+    fn write(&mut self, value: &[[u16; SAMPLES]; CHANNELS]);
 }
 
 #[cfg(all(feature = "test-utils", feature = "std"))]
@@ -167,17 +164,6 @@ mod test_utils {
         }
     }
 
-    mock! {
-        pub UdpProtocol {}
-        impl UdpProtocol for UdpProtocol {
-            fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error>;
-
-            fn write(&mut self, buf: &[u8], to_addr: &str) -> Result<usize, std::io::Error>;
-
-            fn flush(&mut self);
-        }
-    }
-
     pub struct MockFrame {
         id: embedded_can::Id,
         data: Vec<u8>,
@@ -233,15 +219,29 @@ mod test_utils {
         }
     }
 
-    #[cfg(feature = "spi")]
     mock! {
-        pub SpiProtocol {}
+        pub FlushableProtocol {}
 
-        impl SpiProtocol for SpiProtocol {
-            type Error = spi::ErrorKind;
+        impl Flush for FlushableProtocol {
+            fn flush(&mut self);
+        }
+    }
 
-            fn write(&mut self, data: &[u8]) -> Result<(), spi::ErrorKind>;
-            fn read(&mut self, data: &mut [u8]) -> Result<(), spi::ErrorKind>;
+    #[cfg(feature = "adc")]
+    mock! {
+        pub AdcProtocol {}
+        impl AdcProtocol for AdcProtocol {
+            fn read(&mut self) -> u16;
+            fn flush(&mut self);
+        }
+    }
+
+    #[cfg(feature = "dac")]
+    mock! {
+        // DacProtocol requires the number of channels (2) and the number of samples (1)
+        pub DacProtocol {}
+        impl DacProtocol<2, 1> for DacProtocol {
+            fn write(&mut self, value: &[[u16; 1]; 2]);
         }
     }
 }

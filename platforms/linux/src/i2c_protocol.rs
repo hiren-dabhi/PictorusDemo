@@ -1,5 +1,8 @@
 pub use embedded_hal_02::blocking::i2c::{Write, WriteRead};
 
+use corelib_traits::{ByteSliceSignal, InputBlock, OutputBlock};
+use pictorus_core_blocks::{I2cInputBlockParams, I2cOutputBlockParams};
+use protocols::I2c;
 use utils::PictorusError;
 
 use linux_embedded_hal::i2cdev::linux::LinuxI2CError;
@@ -31,4 +34,69 @@ pub fn create_i2c_protocol() -> Result<I2cdev, PictorusError> {
     })?;
 
     Ok(i2c)
+}
+
+pub struct I2cWrapper {
+    pub i2c: I2cdev,
+    buffer: Vec<u8>,
+}
+
+impl I2cWrapper {
+    pub fn new() -> Self {
+        let i2c = create_i2c_protocol().expect("I2C device not found");
+
+        Self {
+            i2c,
+            buffer: Vec::new(),
+        }
+    }
+}
+
+impl Default for I2cWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl InputBlock for I2cWrapper {
+    type Output = ByteSliceSignal;
+    type Parameters = I2cInputBlockParams;
+
+    fn input(
+        &mut self,
+        parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+    ) -> corelib_traits::PassBy<'_, Self::Output> {
+        let size = parameters.read_bytes;
+        self.buffer.resize(parameters.read_bytes, 0);
+        let result = self.i2c.write_read(
+            parameters.address,
+            &[parameters.command],
+            &mut self.buffer[..size],
+        );
+
+        if result.is_err() {
+            // TODO: Error handling
+            // Keep results, good or bad, in memory
+        }
+
+        &self.buffer
+    }
+}
+
+impl OutputBlock for I2cWrapper {
+    type Inputs = ByteSliceSignal;
+    type Parameters = I2cOutputBlockParams;
+
+    fn output(
+        &mut self,
+        parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+        inputs: corelib_traits::PassBy<'_, Self::Inputs>,
+    ) {
+        let mut tx_buffer = Vec::new();
+        tx_buffer.push(parameters.command);
+        tx_buffer.extend_from_slice(inputs);
+        self.i2c.write(parameters.address, &tx_buffer).ok();
+    }
 }
