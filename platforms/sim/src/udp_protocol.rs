@@ -1,3 +1,5 @@
+use corelib_traits::{ByteSliceSignal, InputBlock, OutputBlock};
+use pictorus_core_blocks::{UdpReceiveBlockParams, UdpTransmitBlockParams};
 use protocols::UdpProtocol;
 use std::{convert::Infallible, io::Error};
 
@@ -10,8 +12,8 @@ impl UdpConnection {
 }
 
 impl UdpProtocol for UdpConnection {
-    fn read(&mut self, _buf: &mut [u8]) -> Result<usize, Error> {
-        Ok(0)
+    fn read(&mut self) -> Result<&[u8], Error> {
+        Ok(&[])
     }
 
     fn write(&mut self, buf: &[u8], _to_addr: &str) -> Result<usize, Error> {
@@ -23,4 +25,30 @@ impl UdpProtocol for UdpConnection {
 
 pub fn create_udp_socket(_address: &str, _transmit_enabled: bool) -> UdpConnection {
     UdpConnection {}
+}
+
+impl InputBlock for UdpConnection {
+    type Output = ByteSliceSignal;
+    type Parameters = UdpReceiveBlockParams;
+
+    fn input(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+    ) -> corelib_traits::PassBy<'_, Self::Output> {
+        &[]
+    }
+}
+
+impl OutputBlock for UdpConnection {
+    type Parameters = UdpTransmitBlockParams;
+    type Inputs = ByteSliceSignal;
+
+    fn output(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+        _inputs: corelib_traits::PassBy<'_, Self::Inputs>,
+    ) {
+    }
 }

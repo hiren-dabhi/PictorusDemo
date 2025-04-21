@@ -6,8 +6,7 @@ use embedded_can::Frame;
 use log::{debug, warn};
 use protocols::CanProtocol;
 
-use crate::{stale_tracker::StaleTracker, traits::IsValid};
-use utils::BlockData;
+use utils::{stale_tracker::StaleTracker, BlockData, IsValid};
 
 type RxCallback<T> = fn(&T, &mut [BlockData]);
 pub struct CanReceiveBlock<T> {

@@ -1,0 +1,18 @@
+[package]
+edition = "2021"
+name = "pictorus-std-blocks"
+publish = false
+
+[dependencies]
+rustfft = { version = "6.2.0", default-features = false }
+corelib-traits = { path = "../corelib-traits" }
+utils = { path = "../utils" }
+nalgebra = { version = "0.33.2", default-features = false }
+num-traits = { version = "0.2.19", default-features = false, features = [ "libm",] }
+chrono = { version = "0.4.40", default-features = false, features = [ "now", "clock",] }
+strum = { version = "0.25.0", default-features = false, features = [ "derive",] }
+
+[dev-dependencies]
+approx = "0.5.1"
+corelib-traits-testing = { path = "../corelib-traits-testing" }
+pictorus-core-blocks = { path = "../pictorus-core-blocks" }

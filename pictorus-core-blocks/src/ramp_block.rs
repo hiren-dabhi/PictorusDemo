@@ -1,6 +1,5 @@
-use core::time::Duration;
-use corelib_traits::{DurationExt, GeneratorBlock, Scalar};
-use num_traits::Float;
+use crate::traits::Float;
+use corelib_traits::{GeneratorBlock, Scalar};
 use utils::block_data::BlockData;
 
 #[derive(Debug, Clone)]
@@ -25,7 +24,6 @@ impl<T> GeneratorBlock for RampBlock<T>
 where
     T: Scalar + Float,
     f64: From<T>,
-    Duration: DurationExt<T>,
 {
     type Parameters = Parameters<T>;
     type Output = T;
@@ -35,8 +33,9 @@ where
         parameters: &Self::Parameters,
         context: &dyn corelib_traits::Context,
     ) -> corelib_traits::PassBy<Self::Output> {
-        let time = context.time().as_sec_float();
-        let ramp_val = parameters.rate * (time - parameters.start_time).max(T::zero());
+        let time = T::from_duration(context.time());
+        let ramp_val =
+            parameters.rate * num_traits::Float::max(time - parameters.start_time, T::zero());
         self.data = BlockData::from_scalar(ramp_val.into());
         ramp_val
     }
@@ -66,6 +65,7 @@ mod tests {
         let mut block = RampBlock::<f64>::default();
         let mut runtime = StubRuntime::new(StubContext::new(
             Duration::from_secs_f64(0.0),
+            None,
             Duration::from_secs_f64(1.0),
         ));
 

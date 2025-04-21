@@ -5,8 +5,9 @@ edition = "2021"
 
 [dependencies]
 utils = { path = "../../utils" }
+corelib-traits = { path = "../../corelib-traits" }
+pictorus-core-blocks = { path = "../../pictorus-core-blocks" }
 protocols = { path = "../../protocols", features = [ "can",] }
-chrono = "0.4.34"
 embedded-hal = "1.0.0"
 embedded-hal-02 = { package = "embedded-hal", version = "0.2.6", features = [ "unproven",] }
 embedded-io = { version = "0.6.1", features = [ "std",] }
@@ -21,5 +22,4 @@ socketcan = "3.3.0"
 nb = "1.1.0"
 
 [features]
-default = [ "spi",]
-spi = [ "protocols/spi",]
+default = []

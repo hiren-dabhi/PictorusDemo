@@ -7,10 +7,14 @@ pub struct AggregateBlock<T: Apply> {
     buffer: Option<T::Output>,
 }
 
-impl<T: Apply> Default for AggregateBlock<T> {
+impl<T: Apply> Default for AggregateBlock<T>
+where
+    T: Pass + Default,
+    OldBlockData: FromPass<T::Output>,
+{
     fn default() -> Self {
         Self {
-            data: OldBlockData::from_scalar(0.0),
+            data: <OldBlockData as FromPass<T::Output>>::from_pass(<T::Output>::default().as_by()),
             buffer: None,
         }
     }
@@ -18,7 +22,7 @@ impl<T: Apply> Default for AggregateBlock<T> {
 
 impl<T> ProcessBlock for AggregateBlock<T>
 where
-    T: Apply,
+    T: Apply + Default,
     OldBlockData: FromPass<T::Output>,
 {
     type Inputs = T;

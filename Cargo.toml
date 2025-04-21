@@ -1,3 +1,3 @@
 [workspace]
-members = ["app", "corelib-traits", "corelib-traits-testing", "pictorus-core-blocks", "pictorus-nalgebra-interop", "pictorus_traits", "platforms/linux", "platforms/sim", "platforms/stm32", "protocols", "rust_code_gen", "utils"]
+members = ["app", "corelib-traits", "corelib-traits-testing", "pictorus-core-blocks", "pictorus-nalgebra-interop", "pictorus-std-blocks", "pictorus_traits", "platforms/linux", "platforms/sim", "platforms/stm32", "protocols", "rust_code_gen", "utils"]
 resolver = "2"

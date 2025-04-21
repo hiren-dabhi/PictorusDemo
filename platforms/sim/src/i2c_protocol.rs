@@ -1,25 +1,54 @@
 use core::convert::Infallible;
 
-pub use embedded_hal::i2c::I2c;
-use embedded_hal::i2c::{ErrorType, Operation};
+use corelib_traits::{ByteSliceSignal, InputBlock, OutputBlock};
+use pictorus_core_blocks::{I2cInputBlockParams, I2cOutputBlockParams};
 
-pub struct SimI2cProtocol {}
+pub struct SimI2cProtocol {
+    buffer: Vec<u8>,
+}
 pub type I2cProtocolType = SimI2cProtocol;
 
-impl ErrorType for SimI2cProtocol {
-    type Error = Infallible;
+impl SimI2cProtocol {
+    pub fn new() -> Self {
+        SimI2cProtocol { buffer: Vec::new() }
+    }
 }
 
-impl I2c for SimI2cProtocol {
-    fn transaction(
-        &mut self,
-        _address: u8,
-        _operations: &mut [Operation<'_>],
-    ) -> Result<(), Self::Error> {
-        Ok(())
+impl Default for SimI2cProtocol {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 pub fn create_i2c_protocol() -> Result<SimI2cProtocol, Infallible> {
-    Ok(SimI2cProtocol {})
+    Ok(SimI2cProtocol { buffer: Vec::new() })
+}
+
+impl InputBlock for SimI2cProtocol {
+    type Output = ByteSliceSignal;
+    type Parameters = I2cInputBlockParams;
+
+    fn input(
+        &mut self,
+        parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+    ) -> corelib_traits::PassBy<'_, Self::Output> {
+        self.buffer.resize(parameters.read_bytes, 0);
+        &self.buffer
+    }
+}
+
+impl OutputBlock for SimI2cProtocol {
+    type Inputs = ByteSliceSignal;
+    type Parameters = I2cOutputBlockParams;
+
+    fn output(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+        inputs: corelib_traits::PassBy<'_, Self::Inputs>,
+    ) {
+        self.buffer.clear();
+        self.buffer.extend_from_slice(inputs);
+    }
 }

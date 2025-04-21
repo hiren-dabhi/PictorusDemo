@@ -8,7 +8,7 @@ use miniserde::json::{self, Array, Number, Value};
 use nalgebra::iter::MatrixIter;
 use nalgebra::{DMatrix, SVD};
 
-use corelib_traits::{BlockData as CoreLibBlockData, PassBy};
+use corelib_traits::{ByteSliceSignal, PassBy};
 use pictorus_traits::{BlockDataRead, BlockDataWrite};
 
 #[cfg(feature = "traits_0_1")]
@@ -548,6 +548,12 @@ impl BlockData {
             _ => self.stringify().as_bytes().to_vec(),
         }
     }
+
+    /// Returns a Vector of bytes representing the raw data
+    pub fn to_raw_bytes(&self) -> Vec<u8> {
+        self._data.iter().map(|&v| v as u8).collect()
+    }
+
     /// Returns the serde:json::Value equivalent of this data
     pub fn to_json(&self) -> Value {
         match self.get_type() {
@@ -757,18 +763,6 @@ impl BlockData {
     }
 }
 
-impl BlockData {
-    pub fn core_lib(&self) -> CoreLibBlockData {
-        let dims = self._data.shape();
-        if dims.0 == 1 && dims.1 == 1 {
-            CoreLibBlockData::Float(self.scalar())
-        } else {
-            let matrix: alloc::boxed::Box<[f64]> = self._data.data.as_slice().into();
-            CoreLibBlockData::Matrix(corelib_traits::DMatrix::new(matrix, dims))
-        }
-    }
-}
-
 pub trait FromPass<T: corelib_traits::Pass> {
     fn from_pass(pass: PassBy<T>) -> Self;
 }
@@ -821,6 +815,19 @@ impl FromPass<i32> for BlockData {
     }
 }
 
+impl FromPass<bool> for BlockData {
+    fn from_pass(pass: PassBy<bool>) -> Self {
+        let scalar = if pass { 1. } else { 0. };
+        BlockData::from_scalar(scalar)
+    }
+}
+
+impl FromPass<ByteSliceSignal> for BlockData {
+    fn from_pass(pass: PassBy<ByteSliceSignal>) -> Self {
+        BlockData::from_bytes(pass)
+    }
+}
+
 impl<const NROWS: usize, const NCOLS: usize, T: corelib_traits::Scalar>
     FromPass<corelib_traits::Matrix<NROWS, NCOLS, T>> for BlockData
 {
@@ -849,12 +856,6 @@ impl ToPass<f64> for BlockData {
 impl ToPass<bool> for BlockData {
     fn to_pass(&self) -> bool {
         self.scalar() != 0.0
-    }
-}
-
-impl ToPass<bool> for f64 {
-    fn to_pass(&self) -> bool {
-        *self != 0.0
     }
 }
 

@@ -4,7 +4,7 @@ name = "pictorus-nalgebra-interop"
 publish = false
 
 [dependencies]
-nalgebra = { version = "0.32.3", default-features = false }
+nalgebra = { version = "0.33.2", default-features = false }
 
 [dependencies.corelib-traits]
 path = "../corelib-traits"

@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use corelib_traits::{ByteSliceSignal, InputBlock, OutputBlock};
 use embassy_futures::{
     block_on,
     select::{select, Either},
@@ -14,6 +15,8 @@ use embassy_stm32::{
 use embassy_time::{Duration, Timer};
 use embedded_io::{ErrorType, Read, Write};
 use embedded_io_async as a_io;
+use pictorus_core_blocks::{SerialReceiveBlockParams, SerialTransmitBlockParams};
+use utils::byte_data::BUFF_SIZE_BYTES;
 
 pub struct SerialWrapper<'a> {
     #[cfg(not(feature = "interrupt-uart"))]
@@ -30,7 +33,6 @@ pub struct SerialWrapper<'a> {
     cache: Vec<u8>,
 }
 
-const CAPACITY: usize = 1024;
 impl<'a> SerialWrapper<'a> {
     #[cfg(not(feature = "interrupt-uart"))]
     pub fn new(uart: Uart<'a, Async>, rx_buf: &'a mut [u8]) -> Self {
@@ -41,7 +43,7 @@ impl<'a> SerialWrapper<'a> {
             tx,
             rx,
             cache_stale: true,
-            cache: Vec::with_capacity(CAPACITY),
+            cache: Vec::with_capacity(BUFF_SIZE_BYTES),
         }
     }
 
@@ -52,7 +54,7 @@ impl<'a> SerialWrapper<'a> {
             tx,
             rx,
             cache_stale: true,
-            cache: Vec::with_capacity(CAPACITY),
+            cache: Vec::with_capacity(BUFF_SIZE_BYTES),
         }
     }
 }
@@ -62,12 +64,12 @@ impl ErrorType for SerialWrapper<'_> {
 }
 
 impl Read for SerialWrapper<'_> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize, Self::Error> {
         if self.cache_stale {
             // Regardless of the result we don't want to read again until flush is called
             self.cache_stale = false;
 
-            self.cache.resize(CAPACITY, 0);
+            self.cache.resize(BUFF_SIZE_BYTES, 0);
             let read_fut = a_io::Read::read(&mut self.rx, &mut self.cache);
             let time_fut = Timer::after(Duration::from_micros(10));
 
@@ -85,13 +87,12 @@ impl Read for SerialWrapper<'_> {
         }
 
         // Return cached data that we possibly read during this call
-        let len = buf.len().min(self.cache.len());
+        let len = self.cache.len();
         if len == 0 {
             // Not sure what the correct error is here
             return Err(Error::Framing);
         }
 
-        buf[..len].copy_from_slice(&self.cache[..len]);
         Ok(len)
     }
 }
@@ -105,5 +106,35 @@ impl Write for SerialWrapper<'_> {
         self.cache_stale = true;
         self.cache.clear();
         Ok(())
+    }
+}
+
+impl InputBlock for SerialWrapper<'_> {
+    type Output = ByteSliceSignal;
+    type Parameters = SerialReceiveBlockParams;
+
+    fn input(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+    ) -> corelib_traits::PassBy<'_, Self::Output> {
+        if let Ok(len) = self.read(&mut []) {
+            self.cache.resize(len, 0);
+        }
+        &self.cache
+    }
+}
+
+impl OutputBlock for SerialWrapper<'_> {
+    type Inputs = ByteSliceSignal;
+    type Parameters = SerialTransmitBlockParams;
+
+    fn output(
+        &mut self,
+        _parameters: &Self::Parameters,
+        _context: &dyn corelib_traits::Context,
+        inputs: corelib_traits::PassBy<'_, Self::Inputs>,
+    ) {
+        self.write(inputs).ok();
     }
 }

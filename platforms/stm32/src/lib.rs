@@ -19,7 +19,23 @@ pub use pwm_protocol::*;
 mod logger;
 pub use logger::*;
 
+mod i2c_protocol;
+pub use i2c_protocol::*;
+
+#[cfg(feature = "dac")]
+mod dac_protocol;
+#[cfg(feature = "dac")]
+pub use dac_protocol::*;
+
 #[cfg(feature = "spi")]
 mod spi_protocol;
 #[cfg(feature = "spi")]
 pub use spi_protocol::*;
+
+#[cfg(feature = "adc")]
+mod adc_protocol;
+#[cfg(feature = "adc")]
+pub use adc_protocol::*;
+
+mod gpio_protocol;
+pub use gpio_protocol::*;

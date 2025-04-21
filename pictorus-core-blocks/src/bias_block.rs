@@ -13,11 +13,12 @@ where
 impl<B, T> Default for BiasBlock<B, T>
 where
     B: Scalar,
-    T: Apply<B>,
+    T: Apply<B> + Default,
+    OldBlockData: FromPass<T::Output>,
 {
     fn default() -> Self {
         Self {
-            data: OldBlockData::from_scalar(0.0),
+            data: <OldBlockData as FromPass<T::Output>>::from_pass(<T::Output>::default().as_by()),
             buffer: None,
         }
     }
@@ -26,7 +27,7 @@ where
 impl<B, T> ProcessBlock for BiasBlock<B, T>
 where
     B: Scalar,
-    T: Apply<B>,
+    T: Apply<B> + Default,
     OldBlockData: FromPass<T::Output>,
 {
     type Inputs = T;
@@ -46,7 +47,7 @@ where
 }
 
 pub trait Apply<B: Scalar>: Pass {
-    type Output: Pass;
+    type Output: Pass + Default;
 
     fn apply<'s>(
         store: &'s mut Option<Self::Output>,

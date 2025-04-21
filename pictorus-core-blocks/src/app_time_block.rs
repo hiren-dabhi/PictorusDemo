@@ -1,6 +1,5 @@
-use core::time::Duration;
-use corelib_traits::{DurationExt, GeneratorBlock, Scalar};
-use num_traits::Float;
+use crate::traits::Float;
+use corelib_traits::{GeneratorBlock, Scalar};
 use utils::BlockData;
 
 #[derive(Debug, Clone, Default)]
@@ -34,7 +33,6 @@ impl<T> GeneratorBlock for AppTimeBlock<T>
 where
     T: Scalar + Float,
     f64: From<T>,
-    Duration: DurationExt<T>,
 {
     type Parameters = Parameters;
     type Output = T;
@@ -44,7 +42,7 @@ where
         _parameters: &Self::Parameters,
         context: &dyn corelib_traits::Context,
     ) -> corelib_traits::PassBy<Self::Output> {
-        let time = context.time().as_sec_float();
+        let time = T::from_duration(context.time());
         self.data = BlockData::from_scalar(time.into());
         time
     }

@@ -14,10 +14,11 @@ impl<G, T> Default for GainBlock<G, T>
 where
     G: Scalar,
     T: Apply<G>,
+    OldBlockData: FromPass<T::Output>,
 {
     fn default() -> Self {
         Self {
-            data: OldBlockData::from_scalar(0.0),
+            data: <OldBlockData as FromPass<T::Output>>::from_pass(<T::Output>::default().as_by()),
             buffer: None,
         }
     }
@@ -46,7 +47,7 @@ where
 }
 
 pub trait Apply<G: Scalar>: Pass {
-    type Output: Pass;
+    type Output: Pass + Default;
 
     fn apply<'s>(
         store: &'s mut Option<Self::Output>,

@@ -1,12 +1,11 @@
-use core::time::Duration;
-use corelib_traits::{DurationExt, GeneratorBlock, Scalar};
-use num_traits::{Float, FloatConst};
+use crate::traits::Float;
+use corelib_traits::GeneratorBlock;
 use utils::block_data::BlockData;
 
 #[derive(Debug, Clone)]
 pub struct TrianglewaveBlock<T>
 where
-    T: Scalar + Float + FloatConst,
+    T: Float,
     f64: From<T>,
 {
     phantom: core::marker::PhantomData<T>,
@@ -15,7 +14,7 @@ where
 
 impl<T> Default for TrianglewaveBlock<T>
 where
-    T: Scalar + Float + FloatConst,
+    T: Float,
     f64: From<T>,
 {
     fn default() -> Self {
@@ -28,9 +27,8 @@ where
 
 impl<T> GeneratorBlock for TrianglewaveBlock<T>
 where
-    T: Scalar + Float + FloatConst,
+    T: Float,
     f64: From<T>,
-    Duration: DurationExt<T>,
 {
     type Parameters = Parameters<T>;
     type Output = T;
@@ -44,8 +42,8 @@ where
         let two: T = T::one() + T::one();
         let four: T = two + two;
         let t =
-            (parameters.frequency * context.time().as_sec_float() + parameters.phase) / (T::TAU());
-        let t = t.fract();
+            (parameters.frequency * T::from_duration(context.time()) + parameters.phase) / (T::TAU);
+        let t = num_traits::Float::fract(t);
         let y = if t < T::one() / two { t } else { T::one() - t };
         // y is in the range [0, 0.5] over a t value from 0 to 1. Scale it by 4 ( to a range of [0, 2] )
         // then shift it down by 1 to get it in the range [-1, 1], then scale it by the amplitude and add the bias.
@@ -55,14 +53,14 @@ where
     }
 }
 
-pub struct Parameters<T: Scalar + Float + FloatConst> {
+pub struct Parameters<T: Float> {
     pub amplitude: T,
     pub frequency: T,
     pub phase: T,
     pub bias: T,
 }
 
-impl<T: Scalar + Float + FloatConst> Parameters<T> {
+impl<T: Float> Parameters<T> {
     pub fn new(amplitude: T, frequency: T, phase: T, bias: T) -> Parameters<T> {
         Parameters {
             amplitude,
@@ -77,13 +75,18 @@ impl<T: Scalar + Float + FloatConst> Parameters<T> {
 mod tests {
     use super::*;
     use approx::assert_relative_eq;
+    use core::time::Duration;
     use corelib_traits_testing::{StubContext, StubRuntime};
 
     const PI: f64 = core::f64::consts::PI;
 
     #[test]
     fn test_trianglewave_block_simple() {
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_secs_f64(PI / 2.0));
+        let context = StubContext::new(
+            Duration::from_secs(0),
+            None,
+            Duration::from_secs_f64(PI / 2.0),
+        );
         let mut runtime = StubRuntime::new(context);
 
         let amplitude = 1.0;
@@ -116,7 +119,11 @@ mod tests {
 
     #[test]
     fn test_trianglewave_block_phase() {
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_secs_f64(PI / 2.0));
+        let context = StubContext::new(
+            Duration::from_secs(0),
+            None,
+            Duration::from_secs_f64(PI / 2.0),
+        );
         let mut runtime = StubRuntime::new(context);
 
         let amplitude = 1.0;
@@ -149,7 +156,11 @@ mod tests {
 
     #[test]
     fn test_trianglewave_block_bias() {
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_secs_f64(PI / 2.0));
+        let context = StubContext::new(
+            Duration::from_secs(0),
+            None,
+            Duration::from_secs_f64(PI / 2.0),
+        );
         let mut runtime = StubRuntime::new(context);
 
         let amplitude = 1.0;
@@ -182,7 +193,11 @@ mod tests {
 
     #[test]
     fn test_trianglewave_block_amplitude() {
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_secs_f64(PI / 2.0));
+        let context = StubContext::new(
+            Duration::from_secs(0),
+            None,
+            Duration::from_secs_f64(PI / 2.0),
+        );
         let mut runtime = StubRuntime::new(context);
 
         let amplitude = 2.0;
@@ -215,7 +230,11 @@ mod tests {
 
     #[test]
     fn test_trianglewave_block_high_time() {
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_secs_f64(PI / 2.0));
+        let context = StubContext::new(
+            Duration::from_secs(0),
+            None,
+            Duration::from_secs_f64(PI / 2.0),
+        );
         let mut runtime = StubRuntime::new(context);
 
         let amplitude = 1.0;
@@ -236,7 +255,11 @@ mod tests {
 
     #[test]
     fn test_trianglewave_block_frequency() {
-        let context = StubContext::new(Duration::from_secs(0), Duration::from_secs_f64(PI / 4.0));
+        let context = StubContext::new(
+            Duration::from_secs(0),
+            None,
+            Duration::from_secs_f64(PI / 4.0),
+        );
         let mut runtime = StubRuntime::new(context);
 
         let amplitude = 1.0;

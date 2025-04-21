@@ -1,4 +1,5 @@
 use corelib_traits::{Matrix, Pass, PassBy, ProcessBlock, Scalar};
+use num_traits::Float;
 use pictorus_nalgebra_interop::MatrixExt;
 use utils::{BlockData as OldBlockData, FromPass};
 
@@ -52,7 +53,7 @@ macro_rules! impl_abs_block {
                 _context: &dyn corelib_traits::Context,
                 inputs: corelib_traits::PassBy<'_, Self::Inputs>,
             ) -> corelib_traits::PassBy<'b, Self::Output> {
-                let output = inputs.abs();
+                let output = Float::abs(inputs);
                 self.data = OldBlockData::from_scalar(output.into());
                 output
             }
@@ -84,9 +85,6 @@ macro_rules! impl_abs_block {
     };
 }
 
-impl_abs_block!(i8);
-impl_abs_block!(i16);
-impl_abs_block!(i32);
 impl_abs_block!(f32);
 impl_abs_block!(f64);
 
@@ -164,9 +162,6 @@ mod tests {
         }
     }
 
-    test_abs_block!(i8, i8);
-    test_abs_block!(i16, i16);
-    test_abs_block!(i32, i32);
     test_abs_block!(f32, f32);
     test_abs_block!(f64, f64);
 }
